@@ -11,7 +11,7 @@ import UIKit
 /**
  Default values for the PanModalPresentable.
  */
-public extension PanModalPresentable where Self: UIViewController {
+public extension PanModalPresentable {
 
     var topOffset: CGFloat {
         return topLayoutOffset + 21.0
@@ -23,7 +23,6 @@ public extension PanModalPresentable where Self: UIViewController {
 
     var longFormHeight: PanModalHeight {
         guard let panScrollView else { return .maxHeight }
-
         // called once during presentation and stored
         panScrollView.layoutIfNeeded()
         return .contentHeight(panScrollView.contentSize.height)
@@ -37,8 +36,8 @@ public extension PanModalPresentable where Self: UIViewController {
         return 0.8
     }
 
-    var transitionDuration: Double {
-        return PanModalAnimator.Constants.defaultTransitionDuration
+    var transitionDuration: TimeInterval {
+        return Self.defaultTransitionDuration
     }
 
     var transitionAnimationOptions: UIView.AnimationOptions {
@@ -55,7 +54,7 @@ public extension PanModalPresentable where Self: UIViewController {
 
     var scrollIndicatorInsets: UIEdgeInsets {
         let top = shouldRoundTopCorners ? cornerRadius : 0
-        return UIEdgeInsets(top: CGFloat(top), left: 0, bottom: bottomLayoutOffset, right: 0)
+        return UIEdgeInsets(top: top, left: 0, bottom: bottomLayoutOffset, right: 0)
     }
 
     var anchorModalToLongForm: Bool {
@@ -64,7 +63,6 @@ public extension PanModalPresentable where Self: UIViewController {
 
     var allowsExtendedPanScrolling: Bool {
         guard let panScrollView else { return false }
-
         panScrollView.layoutIfNeeded()
         return panScrollView.contentSize.height > (panScrollView.frame.height - bottomLayoutOffset)
     }

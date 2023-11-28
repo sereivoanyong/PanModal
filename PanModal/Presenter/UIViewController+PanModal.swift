@@ -8,10 +8,7 @@
 #if os(iOS)
 import UIKit
 
-/**
- Extends the UIViewController to conform to the PanModalPresenter protocol
- */
-extension UIViewController: PanModalPresenter {
+extension UIViewController {
 
     /**
      A flag that returns true if the topmost view controller in the navigation stack
@@ -39,7 +36,7 @@ extension UIViewController: PanModalPresenter {
 
      - Note: sourceView & sourceRect are only required for presentation on an iPad.
      */
-    public func presentPanModal(_ viewControllerToPresent: PanModalPresentable.LayoutType,
+    public func presentPanModal(_ viewControllerToPresent: PanModalPresentable,
                                 sourceView: UIView? = nil,
                                 sourceRect: CGRect = .zero,
                                 completion: (() -> Void)? = nil) {

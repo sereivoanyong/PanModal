@@ -19,7 +19,7 @@ import UIKit
  }
  ```
  */
-public protocol PanModalPresentable: AnyObject {
+public protocol PanModalPresentable: UIViewController {
 
     /**
      The scroll view embedded in the view controller.
@@ -76,7 +76,7 @@ public protocol PanModalPresentable: AnyObject {
 
      Default value is 0.5.
     */
-    var transitionDuration: Double { get }
+    var transitionDuration: TimeInterval { get }
 
     /**
      The animation options used when performing animations on the PanModal, utilized mostly
@@ -234,4 +234,30 @@ public protocol PanModalPresentable: AnyObject {
      */
     func panModalDidDismiss()
 }
+
+public extension PanModalPresentable {
+
+  static var defaultTransitionDuration: TimeInterval {
+      return 0.5
+  }
+
+  /**
+   A function wrapper over the animate function in PanModalAnimator.
+
+   This can be used for animation consistency on views within the presented view controller.
+   */
+  func panModalAnimate(_ animations: @escaping () -> Void, _ completion: ((Bool) -> Void)? = nil) {
+      UIView.animate(
+          withDuration: transitionDuration,
+          delay: 0,
+          usingSpringWithDamping: springDamping,
+          initialSpringVelocity: 0,
+          options: transitionAnimationOptions,
+          animations: animations,
+          completion: completion
+      )
+  }
+
+}
+
 #endif

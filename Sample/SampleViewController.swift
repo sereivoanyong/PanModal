@@ -22,6 +22,9 @@ class SampleViewController: UITableViewController {
             .font: UIFont(name: "Lato-Bold", size: 17)!
         ]
 
+        if #available(iOS 15, *) {
+            tableView.sectionHeaderTopPadding = 0
+        }
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: String(describing: UITableViewCell.self))
         tableView.tableFooterView = UIView()
         tableView.separatorInset = .zero
@@ -60,7 +63,7 @@ class SampleViewController: UITableViewController {
 
 protocol RowPresentable {
     var string: String { get }
-    var rowVC: UIViewController & PanModalPresentable { get }
+    var rowVC: PanModalPresentable { get }
 }
 
 private extension SampleViewController {
@@ -89,37 +92,37 @@ private extension SampleViewController {
 
         struct Basic: RowPresentable {
             let string: String = "Basic"
-            let rowVC: PanModalPresentable.LayoutType = BasicViewController()
+            let rowVC: PanModalPresentable = BasicViewController()
         }
 
         struct FullScreen: RowPresentable {
             let string: String = "Full Screen"
-            let rowVC: PanModalPresentable.LayoutType = FullScreenNavController()
+            let rowVC: PanModalPresentable = FullScreenNavController()
         }
 
         struct Alert: RowPresentable {
             let string: String = "Alert"
-            let rowVC: PanModalPresentable.LayoutType = AlertViewController()
+            let rowVC: PanModalPresentable = AlertViewController()
         }
 
         struct TransientAlert: RowPresentable {
             let string: String = "Alert (Transient)"
-            let rowVC: PanModalPresentable.LayoutType = TransientAlertViewController()
+            let rowVC: PanModalPresentable = TransientAlertViewController()
         }
 
         struct UserGroup: RowPresentable {
             let string: String = "User Groups"
-            let rowVC: PanModalPresentable.LayoutType = UserGroupViewController()
+            let rowVC: PanModalPresentable = UserGroupViewController()
         }
 
         struct Navigation: RowPresentable {
             let string: String = "User Groups (NavigationController)"
-            let rowVC: PanModalPresentable.LayoutType = NavigationController()
+            let rowVC: PanModalPresentable = NavigationController()
         }
 
         struct Stacked: RowPresentable {
             let string: String = "User Groups (Stacked)"
-            let rowVC: PanModalPresentable.LayoutType = UserGroupStackedViewController()
+            let rowVC: PanModalPresentable = UserGroupStackedViewController()
         }
     }
 }

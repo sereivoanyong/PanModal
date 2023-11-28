@@ -53,7 +53,7 @@ public class PanModalPresentationAnimator: NSObject {
         /**
          Prepare haptic feedback, only during the presentation state
          */
-        if case .presentation = transitionStyle {
+        if transitionStyle == .presentation {
             feedbackGenerator = UISelectionFeedbackGenerator()
             feedbackGenerator?.prepare()
         }
@@ -63,11 +63,7 @@ public class PanModalPresentationAnimator: NSObject {
      Animate presented view controller presentation
      */
     private func animatePresentation(transitionContext: UIViewControllerContextTransitioning) {
-
-        guard
-            let toVC = transitionContext.viewController(forKey: .to),
-            let fromVC = transitionContext.viewController(forKey: .from)
-            else { return }
+        guard let toVC = transitionContext.viewController(forKey: .to), let fromVC = transitionContext.viewController(forKey: .from) else { return }
 
         let presentable = panModalLayoutType(from: transitionContext)
 
@@ -75,7 +71,7 @@ public class PanModalPresentationAnimator: NSObject {
         fromVC.beginAppearanceTransition(false, animated: true)
         
         // Presents the view in shortForm position, initially
-        let yPos: CGFloat = presentable?.shortFormYPos ?? 0.0
+        let yPos = presentable.shortFormYPos
 
         // Use panView as presentingView if it already exists within the containerView
         let panView: UIView = transitionContext.containerView.panContainerView ?? toVC.view
@@ -85,13 +81,13 @@ public class PanModalPresentationAnimator: NSObject {
         panView.frame.origin.y = transitionContext.containerView.frame.height
 
         // Haptic feedback
-        if presentable?.isHapticFeedbackEnabled == true {
+        if presentable.isHapticFeedbackEnabled {
             feedbackGenerator?.selectionChanged()
         }
 
-        PanModalAnimator.animate({
+        presentable.panModalAnimate({
             panView.frame.origin.y = yPos
-        }, config: presentable) { [weak self] didComplete in
+        }) { [weak self] didComplete in
             // Calls viewDidAppear and viewDidDisappear
             fromVC.endAppearanceTransition()
             transitionContext.completeTransition(didComplete)
@@ -103,11 +99,7 @@ public class PanModalPresentationAnimator: NSObject {
      Animate presented view controller dismissal
      */
     private func animateDismissal(transitionContext: UIViewControllerContextTransitioning) {
-
-        guard
-            let toVC = transitionContext.viewController(forKey: .to),
-            let fromVC = transitionContext.viewController(forKey: .from)
-            else { return }
+        guard let toVC = transitionContext.viewController(forKey: .to), let fromVC = transitionContext.viewController(forKey: .from) else { return }
 
         // Calls viewWillAppear and viewWillDisappear
         toVC.beginAppearanceTransition(true, animated: true)
@@ -115,9 +107,9 @@ public class PanModalPresentationAnimator: NSObject {
         let presentable = panModalLayoutType(from: transitionContext)
         let panView: UIView = transitionContext.containerView.panContainerView ?? fromVC.view
 
-        PanModalAnimator.animate({
+        presentable.panModalAnimate({
             panView.frame.origin.y = transitionContext.containerView.frame.height
-        }, config: presentable) { didComplete in
+        }) { didComplete in
             fromVC.view.removeFromSuperview()
             // Calls viewDidAppear and viewDidDisappear
             toVC.endAppearanceTransition()
@@ -128,12 +120,12 @@ public class PanModalPresentationAnimator: NSObject {
     /**
      Extracts the PanModal from the transition context, if it exists
      */
-    private func panModalLayoutType(from context: UIViewControllerContextTransitioning) -> PanModalPresentable.LayoutType? {
+    private func panModalLayoutType(from context: UIViewControllerContextTransitioning) -> PanModalPresentable {
         switch transitionStyle {
         case .presentation:
-            return context.viewController(forKey: .to) as? PanModalPresentable.LayoutType
+            return context.viewController(forKey: .to) as! PanModalPresentable
         case .dismissal:
-            return context.viewController(forKey: .from) as? PanModalPresentable.LayoutType
+            return context.viewController(forKey: .from) as! PanModalPresentable
         }
     }
 
@@ -147,12 +139,8 @@ extension PanModalPresentationAnimator: UIViewControllerAnimatedTransitioning {
      Returns the transition duration
      */
     public func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
-
-        guard
-            let context = transitionContext,
-            let presentable = panModalLayoutType(from: context)
-            else { return PanModalAnimator.Constants.defaultTransitionDuration }
-
+        guard let transitionContext else { return 0.5 }
+        let presentable = panModalLayoutType(from: transitionContext)
         return presentable.transitionDuration
     }
 

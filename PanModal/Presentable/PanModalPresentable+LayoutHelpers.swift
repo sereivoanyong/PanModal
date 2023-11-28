@@ -12,13 +12,13 @@ import UIKit
  ⚠️ [Internal Only] ⚠️
  Helper extensions that handle layout in the PanModalPresentationController
  */
-extension PanModalPresentable where Self: UIViewController {
+extension PanModalPresentable {
 
     /**
      Cast the presentation controller to PanModalPresentationController
      so we can access PanModalPresentationController properties and methods
      */
-    var presentedVC: PanModalPresentationController? {
+    var panModalPresentationController: PanModalPresentationController? {
         return presentationController as? PanModalPresentationController
     }
 
@@ -27,11 +27,8 @@ extension PanModalPresentable where Self: UIViewController {
      Gives us the safe area inset from the top.
      */
     var topLayoutOffset: CGFloat {
-
-        guard let rootVC = rootViewController
-            else { return 0}
-
-        return rootVC.view.safeAreaInsets.top
+        guard let rootViewController else { return 0 }
+        return rootViewController.view.safeAreaInsets.top
     }
 
     /**
@@ -39,11 +36,8 @@ extension PanModalPresentable where Self: UIViewController {
      Gives us the safe area inset from the bottom.
      */
     var bottomLayoutOffset: CGFloat {
-
-       guard let rootVC = rootViewController
-            else { return 0}
-
-        return rootVC.view.safeAreaInsets.bottom
+        guard let rootViewController else { return 0 }
+        return rootViewController.view.safeAreaInsets.bottom
     }
 
     /**
@@ -53,12 +47,8 @@ extension PanModalPresentable where Self: UIViewController {
      We do not support short form when voiceover is on as it would make it difficult for user to navigate.
      */
     var shortFormYPos: CGFloat {
-
-        guard !UIAccessibility.isVoiceOverRunning
-            else { return longFormYPos }
-
+        guard !UIAccessibility.isVoiceOverRunning else { return longFormYPos }
         let shortFormYPos = topMargin(from: shortFormHeight) + topOffset
-
         // shortForm shouldn't exceed longForm
         return max(shortFormYPos, longFormYPos)
     }
@@ -78,11 +68,8 @@ extension PanModalPresentable where Self: UIViewController {
      is adjusted in PanModalPresentationController
      */
     var bottomYPos: CGFloat {
-
-        guard let container = presentedVC?.containerView
-            else { return view.bounds.height }
-
-        return container.bounds.size.height - topOffset
+        guard let containerView = panModalPresentationController?.containerView else { return view.bounds.height }
+        return containerView.bounds.size.height - topOffset
     }
 
     /**
@@ -101,7 +88,7 @@ extension PanModalPresentable where Self: UIViewController {
             return bottomYPos - height
         case .intrinsicHeight:
             view.layoutIfNeeded()
-            let targetSize = CGSize(width: (presentedVC?.containerView?.bounds ?? UIScreen.main.bounds).width,
+            let targetSize = CGSize(width: (panModalPresentationController?.containerView?.bounds ?? UIScreen.main.bounds).width,
                                     height: UIView.layoutFittingCompressedSize.height)
             let intrinsicHeight = view.systemLayoutSizeFitting(targetSize).height
             return bottomYPos - (intrinsicHeight + bottomLayoutOffset)
@@ -109,11 +96,7 @@ extension PanModalPresentable where Self: UIViewController {
     }
 
     private var rootViewController: UIViewController? {
-
-        guard let application = UIApplication.value(forKeyPath: #keyPath(UIApplication.shared)) as? UIApplication
-            else { return nil }
-
-        return application.keyWindow?.rootViewController
+        return UIApplication.shared.keyWindow?.rootViewController
     }
 
 }

@@ -27,13 +27,13 @@ class NavigationController: UINavigationController, PanModalPresentable {
 
     override func popViewController(animated: Bool) -> UIViewController? {
         let vc = super.popViewController(animated: animated)
-        panModalSetNeedsLayoutUpdate()
+        panModalPresentationController?.setNeedsLayoutUpdate()
         return vc
     }
 
     override func pushViewController(_ viewController: UIViewController, animated: Bool) {
         super.pushViewController(viewController, animated: animated)
-        panModalSetNeedsLayoutUpdate()
+        panModalPresentationController?.setNeedsLayoutUpdate()
     }
 
     // MARK: - Pan Modal Presentable

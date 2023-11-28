@@ -51,7 +51,9 @@ class UserGroupViewController: UITableViewController, PanModalPresentable {
     // MARK: - View Configurations
 
     func setupTableView() {
-
+        if #available(iOS 15, *) {
+            tableView.sectionHeaderTopPadding = 0
+        }
         tableView.separatorStyle = .none
         tableView.backgroundColor = #colorLiteral(red: 0.1019607843, green: 0.1137254902, blue: 0.1294117647, alpha: 1)
         tableView.register(UserGroupMemberCell.self, forCellReuseIdentifier: "cell")
@@ -64,10 +66,7 @@ class UserGroupViewController: UITableViewController, PanModalPresentable {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as? UserGroupMemberCell
-            else { return UITableViewCell() }
-
+        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as! UserGroupMemberCell
         cell.configure(with: members[indexPath.row])
         return cell
     }
@@ -98,7 +97,7 @@ class UserGroupViewController: UITableViewController, PanModalPresentable {
     }
 
     var scrollIndicatorInsets: UIEdgeInsets {
-        let bottomOffset = presentingViewController?.bottomLayoutGuide.length ?? 0
+        let bottomOffset = presentingViewController?.view.safeAreaInsets.bottom ?? 0
         return UIEdgeInsets(top: headerView.frame.size.height, left: 0, bottom: bottomOffset, right: 0)
     }
 
@@ -112,11 +111,10 @@ class UserGroupViewController: UITableViewController, PanModalPresentable {
     }
 
     func willTransition(to state: PanModalPresentationController.PresentationState) {
-        guard isShortFormEnabled, case .longForm = state
-            else { return }
+        guard isShortFormEnabled && state == .longForm else { return }
 
         isShortFormEnabled = false
-        panModalSetNeedsLayoutUpdate()
+        panModalPresentationController?.setNeedsLayoutUpdate()
     }
 
 }

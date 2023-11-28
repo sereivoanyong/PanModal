@@ -23,9 +23,7 @@ public class PanModalPresentationDelegate: NSObject {
     /**
      Returns an instance of the delegate, retained for the duration of presentation
      */
-    public static var `default`: PanModalPresentationDelegate = {
-        return PanModalPresentationDelegate()
-    }()
+    public static let `default` = PanModalPresentationDelegate()
 
 }
 
@@ -52,7 +50,8 @@ extension PanModalPresentationDelegate: UIViewControllerTransitioningDelegate {
      Changes in size class during presentation are handled via the adaptive presentation delegate
      */
     public func presentationController(forPresented presented: UIViewController, presenting: UIViewController?, source: UIViewController) -> UIPresentationController? {
-        let controller = PanModalPresentationController(presentedViewController: presented, presenting: presenting)
+        guard let presented = presented as? PanModalPresentable else { return nil }
+        let controller = PanModalPresentationController(presented: presented, presenting: presenting)
         controller.delegate = self
         return controller
     }
