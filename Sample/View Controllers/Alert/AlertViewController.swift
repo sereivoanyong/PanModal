@@ -34,7 +34,7 @@ class AlertViewController: UIViewController, PanModalPresentable {
 
     // MARK: - PanModalPresentable
 
-    var panScrollable: UIScrollView? {
+    var panScrollView: UIScrollView? {
         return nil
     }
 

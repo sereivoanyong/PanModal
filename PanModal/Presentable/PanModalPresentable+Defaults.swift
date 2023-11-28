@@ -22,13 +22,11 @@ public extension PanModalPresentable where Self: UIViewController {
     }
 
     var longFormHeight: PanModalHeight {
-
-        guard let scrollView = panScrollable
-            else { return .maxHeight }
+        guard let panScrollView else { return .maxHeight }
 
         // called once during presentation and stored
-        scrollView.layoutIfNeeded()
-        return .contentHeight(scrollView.contentSize.height)
+        panScrollView.layoutIfNeeded()
+        return .contentHeight(panScrollView.contentSize.height)
     }
 
     var cornerRadius: CGFloat {
@@ -65,12 +63,10 @@ public extension PanModalPresentable where Self: UIViewController {
     }
 
     var allowsExtendedPanScrolling: Bool {
+        guard let panScrollView else { return false }
 
-        guard let scrollView = panScrollable
-            else { return false }
-
-        scrollView.layoutIfNeeded()
-        return scrollView.contentSize.height > (scrollView.frame.height - bottomLayoutOffset)
+        panScrollView.layoutIfNeeded()
+        return panScrollView.contentSize.height > (panScrollView.frame.height - bottomLayoutOffset)
     }
 
     var allowsDragToDismiss: Bool {

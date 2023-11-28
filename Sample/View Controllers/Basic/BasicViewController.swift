@@ -22,7 +22,7 @@ extension BasicViewController: PanModalPresentable {
         return .lightContent
     }
 
-    var panScrollable: UIScrollView? {
+    var panScrollView: UIScrollView? {
         return nil
     }
 

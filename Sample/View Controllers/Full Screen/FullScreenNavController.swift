@@ -18,7 +18,7 @@ class FullScreenNavController: UINavigationController {
 
 extension FullScreenNavController: PanModalPresentable {
 
-    var panScrollable: UIScrollView? {
+    var panScrollView: UIScrollView? {
         return nil
     }
 

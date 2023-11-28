@@ -38,8 +38,8 @@ class NavigationController: UINavigationController, PanModalPresentable {
 
     // MARK: - Pan Modal Presentable
 
-    var panScrollable: UIScrollView? {
-        return (topViewController as? PanModalPresentable)?.panScrollable
+    var panScrollView: UIScrollView? {
+        return (topViewController as? PanModalPresentable)?.panScrollView
     }
 
     var longFormHeight: PanModalHeight {

@@ -89,7 +89,7 @@ class UserGroupViewController: UITableViewController, PanModalPresentable {
 
     // MARK: - Pan Modal Presentable
 
-    var panScrollable: UIScrollView? {
+    var panScrollView: UIScrollView? {
         return tableView
     }
 

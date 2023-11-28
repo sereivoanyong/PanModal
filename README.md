@@ -75,20 +75,20 @@ The presented view controller must conform to `PanModalPresentable` to take adva
 ```swift
 extension YourViewController: PanModalPresentable {
 
-    var panScrollable: UIScrollView? {
+    var panScrollView: UIScrollView? {
         return nil
     }
 }
 ```
 
-### PanScrollable
+### PanScrollView
 
 If the presented view controller has an embedded `UIScrollView` e.g. as is the case with `UITableViewController`, panModal will seamlessly transition pan gestures between the modal and the scroll view
 
 ```swift
 class TableViewController: UITableViewController, PanModalPresentable {
 
-    var panScrollable: UIScrollView? {
+    var panScrollView: UIScrollView? {
         return tableView
     }
 }

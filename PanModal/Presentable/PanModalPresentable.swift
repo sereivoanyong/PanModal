@@ -26,7 +26,7 @@ public protocol PanModalPresentable: AnyObject {
      Setting this value allows for seamless transition scrolling between the embedded scroll view
      and the pan modal container view.
      */
-    var panScrollable: UIScrollView? { get }
+    var panScrollView: UIScrollView? { get }
 
     /**
      The offset between the top of the screen and the top of the pan modal container view.
@@ -103,7 +103,7 @@ public protocol PanModalPresentable: AnyObject {
     var dragIndicatorBackgroundColor: UIColor { get }
 
     /**
-     We configure the panScrollable's scrollIndicatorInsets interally so override this value
+     We configure the panScrollView's scrollIndicatorInsets interally so override this value
      to set custom insets.
 
      - Note: Use `panModalSetNeedsLayoutUpdate()` when updating insets.

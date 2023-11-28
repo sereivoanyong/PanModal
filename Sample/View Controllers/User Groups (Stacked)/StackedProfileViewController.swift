@@ -94,7 +94,7 @@ class StackedProfileViewController: UIViewController, PanModalPresentable {
 
     // MARK: - Pan Modal Presentable
 
-    var panScrollable: UIScrollView? {
+    var panScrollView: UIScrollView? {
         return nil
     }
 

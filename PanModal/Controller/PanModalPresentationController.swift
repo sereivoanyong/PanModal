@@ -281,7 +281,7 @@ public extension PanModalPresentationController {
      */
     func performUpdates(_ updates: () -> Void) {
 
-        guard let scrollView = presentable?.panScrollable
+        guard let panScrollView = presentable?.panScrollView
             else { return }
 
         // Pause scroll observer
@@ -292,8 +292,8 @@ public extension PanModalPresentationController {
         updates()
 
         // Resume scroll observer
-        trackScrolling(scrollView)
-        observe(scrollView: scrollView)
+        trackScrolling(panScrollView)
+        observe(scrollView: panScrollView)
     }
 
     /**
@@ -306,7 +306,7 @@ public extension PanModalPresentationController {
     func setNeedsLayoutUpdate() {
         configureViewLayout()
         adjustPresentedViewFrame()
-        observe(scrollView: presentable?.panScrollable)
+        observe(scrollView: presentable?.panScrollView)
         configureScrollViewInsets()
     }
 
@@ -392,7 +392,7 @@ private extension PanModalPresentationController {
      */
     func adjustPanContainerBackgroundColor() {
         panContainerView.backgroundColor = presentedViewController.view.backgroundColor
-            ?? presentable?.panScrollable?.backgroundColor
+            ?? presentable?.panScrollView?.backgroundColor
     }
 
     /**
@@ -443,28 +443,28 @@ private extension PanModalPresentationController {
     func configureScrollViewInsets() {
 
         guard
-            let scrollView = presentable?.panScrollable,
-            !scrollView.isScrolling
+            let panScrollView = presentable?.panScrollView,
+            !panScrollView.isScrolling
             else { return }
 
         /**
          Disable vertical scroll indicator until we start to scroll
          to avoid visual bugs
          */
-        scrollView.showsVerticalScrollIndicator = false
-        scrollView.scrollIndicatorInsets = presentable?.scrollIndicatorInsets ?? .zero
+        panScrollView.showsVerticalScrollIndicator = false
+        panScrollView.scrollIndicatorInsets = presentable?.scrollIndicatorInsets ?? .zero
 
         /**
          Set the appropriate contentInset as the configuration within this class
          offsets it
          */
-        scrollView.contentInset.bottom = presentingViewController.view.safeAreaInsets.bottom
+        panScrollView.contentInset.bottom = presentingViewController.view.safeAreaInsets.bottom
 
         /**
          As we adjust the bounds during `handleScrollViewTopBounce`
          we should assume that contentInsetAdjustmentBehavior will not be correct
          */
-        scrollView.contentInsetAdjustmentBehavior = .never
+        panScrollView.contentInsetAdjustmentBehavior = .never
     }
 
 }
@@ -604,25 +604,25 @@ private extension PanModalPresentationController {
          Allow api consumers to override the internal conditions &
          decide if the pan gesture recognizer should be prioritized.
 
-         ⚠️ This is the only time we should be cancelling the panScrollable recognizer,
+         ⚠️ This is the only time we should be cancelling the panScrollView recognizer,
          for the purpose of ensuring we're no longer tracking the scrollView
          */
         guard !shouldPrioritize(panGestureRecognizer: panGestureRecognizer) else {
-            presentable?.panScrollable?.panGestureRecognizer.isEnabled = false
-            presentable?.panScrollable?.panGestureRecognizer.isEnabled = true
+            presentable?.panScrollView?.panGestureRecognizer.isEnabled = false
+            presentable?.panScrollView?.panGestureRecognizer.isEnabled = true
             return false
         }
 
         guard
             isPresentedViewAnchored,
-            let scrollView = presentable?.panScrollable,
-            scrollView.contentOffset.y > 0
+            let panScrollView = presentable?.panScrollView,
+            panScrollView.contentOffset.y > 0
             else {
                 return false
         }
 
         let loc = panGestureRecognizer.location(in: presentedView)
-        return (scrollView.frame.contains(loc) || scrollView.isScrolling)
+        return (panScrollView.frame.contains(loc) || panScrollView.isScrolling)
     }
 
     /**
@@ -830,7 +830,7 @@ extension PanModalPresentationController: UIGestureRecognizerDelegate {
      is the pan scrollable view
      */
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        return otherGestureRecognizer.view == presentable?.panScrollable
+        return otherGestureRecognizer.view == presentable?.panScrollView
     }
 }
 

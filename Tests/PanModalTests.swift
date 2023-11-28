@@ -16,11 +16,11 @@ import XCTest
 class PanModalTests: XCTestCase {
 
     class MockViewController: UIViewController, PanModalPresentable {
-        var panScrollable: UIScrollView? { return nil }
+        var panScrollView: UIScrollView? { return nil }
     }
 
     class AdjustedMockViewController: UITableViewController, PanModalPresentable {
-        var panScrollable: UIScrollView? { return tableView }
+        var panScrollView: UIScrollView? { return tableView }
         var shortFormHeight: PanModalHeight { return .contentHeight(300) }
         var longFormHeight: PanModalHeight { return .maxHeightWithTopInset(50) }
         // for testing purposes - to mimic safe area insets
