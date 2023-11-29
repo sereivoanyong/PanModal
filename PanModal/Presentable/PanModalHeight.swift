@@ -9,36 +9,35 @@
 import UIKit
 
 /**
- An enum that defines the possible states of the height of a pan modal container view
- for a given presentation state (shortForm, longForm)
+ An enum that defines the possible states of the height of a pan modal container view for a given detent.
  */
 public enum PanModalHeight: Equatable {
 
     /**
-     Sets the height to be the maximum height (+ topOffset)
-     */
-    case maxHeight
-
-    /**
      Sets the height to be the max height with a specified top inset.
-     - Note: A value of 0 is equivalent to .maxHeight
+     - Note: A value of 0 is equivalent to .max
      */
-    case maxHeightWithTopInset(CGFloat)
+    case max(topInset: CGFloat)
 
     /**
      Sets the height to be the specified content height
      */
-    case contentHeight(CGFloat)
+    case fixed(CGFloat)
 
     /**
-     Sets the height to be the specified content height
-     & also ignores the bottomSafeAreaInset
+     Sets the height to be the content height of `panScrollView`
      */
-    case contentHeightIgnoringSafeArea(CGFloat)
+    case scrollingContent
 
     /**
      Sets the height to be the intrinsic content height
      */
-    case intrinsicHeight
+    case intrinsicContent
+
+    case content
+
+    public static var max: Self {
+        return max(topInset: 0)
+    }
 }
 #endif

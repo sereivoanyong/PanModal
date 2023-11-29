@@ -10,14 +10,17 @@ import UIKit
 
 /**
  A dim view for use as an overlay over content you want dimmed.
+
+ https://developer.limneos.net/index.php?ios=15.2.1&framework=UIKitCore.framework&header=UIDimmingView.h
  */
-public class DimmedView: UIView {
+open class DimmingView: UIView {
 
     /**
      Represents the possible states of the dimmed view.
      max, off or a percentage of dimAlpha.
      */
     enum DimState {
+
         case max
         case off
         case percent(CGFloat)
@@ -44,32 +47,29 @@ public class DimmedView: UIView {
     /**
      The closure to be executed when a tap occurs
      */
-    var didTap: ((_ recognizer: UIGestureRecognizer) -> Void)?
+    var tapHandler: ((UITapGestureRecognizer) -> Void)?
 
     /**
      Tap gesture recognizer
      */
-    private lazy var tapGesture: UIGestureRecognizer = {
-        return UITapGestureRecognizer(target: self, action: #selector(didTapView))
-    }()
+    lazy private var tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(didTapView))
 
     // MARK: - Initializers
 
-    override init(frame: CGRect = .zero) {
+    public override init(frame: CGRect = .zero) {
         super.init(frame: .zero)
         alpha = 0.0
-        addGestureRecognizer(tapGesture)
+        addGestureRecognizer(tapGestureRecognizer)
     }
 
-    required public init?(coder: NSCoder) {
+    public required init?(coder: NSCoder) {
         fatalError()
     }
 
     // MARK: - Event Handlers
 
-    @objc private func didTapView() {
-        didTap?(tapGesture)
+    @objc private func didTapView(_ tapGestureRecognizer: UITapGestureRecognizer) {
+        tapHandler?(tapGestureRecognizer)
     }
-
 }
 #endif

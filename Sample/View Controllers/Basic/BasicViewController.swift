@@ -26,11 +26,10 @@ extension BasicViewController: PanModalPresentable {
         return nil
     }
 
-    var longFormHeight: PanModalHeight {
-        return .maxHeightWithTopInset(200)
-    }
-
-    var anchorModalToLongForm: Bool {
-        return false
+    var detents: [PanModalPresentationController.Detent] {
+        return [
+            .init(identifier: .large, height: .max(topInset: 200)),
+            .init(identifier: .max, height: .max)
+        ]
     }
 }

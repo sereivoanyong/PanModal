@@ -22,131 +22,79 @@ import UIKit
 
  By conforming to the PanModalPresentable protocol & overriding values
  the presented view can define its layout configuration & presentation.
+
+ https://developer.limneos.net/index.php?ios=15.2.1&framework=UIKitCore.framework&header=UISheetPresentationController.h
  */
 open class PanModalPresentationController: UIPresentationController {
 
-    /**
-     Enum representing the possible presentation states
-     */
-    public enum PresentationState {
-        case shortForm
-        case longForm
-    }
-
-    /**
-     Constants
-     */
-    struct Constants {
-        static let indicatorYOffset = CGFloat(8.0)
-        static let snapMovementSensitivity = CGFloat(0.7)
-        static let dragIndicatorSize = CGSize(width: 36.0, height: 5.0)
-    }
+    private let snapMovementSensitivity: CGFloat = 0.7
 
     // MARK: - Properties
 
     /**
+     An observation for the scroll view content offset
+     */
+    private var scrollObservation: NSKeyValueObservation?
+
+    /**
+     The y content offset value of the embedded scroll view
+     */
+    private var scrollViewYOffset: CGFloat = 0
+
+    private var detents: [Detent] = []
+
+    private var selectedDetent: Detent! {
+        didSet {
+            if let childForPanModal = presented.topMostChildForPanModal {
+              childForPanModal.lastSelectedDetent = selectedDetent
+            }
+        }
+    }
+
+    private var yPositions: [Detent.Identifier: CGFloat] = [:]
+
+    /**
      A flag to track if the presented view is animating
      */
-    private var isPresentedViewAnimating = false
+    private var isPresentedViewAnimating: Bool = false
+
+    /**
+     Determine anchored Y postion based on the `detents.last`
+     */
+    private var anchoredYPosition: CGFloat = 0
 
     /**
      A flag to determine if scrolling should seamlessly transition
      from the pan modal container view to the scroll view
      once the scroll limit has been reached.
      */
-    private var extendsPanScrolling = true
-
-    /**
-     A flag to determine if scrolling should be limited to the longFormHeight.
-     Return false to cap scrolling at .max height.
-     */
-    private var anchorModalToLongForm = true
-
-    /**
-     The y content offset value of the embedded scroll view
-     */
-    private var scrollViewYOffset: CGFloat = 0.0
-
-    /**
-     An observer for the scroll view content offset
-     */
-    private var scrollObserver: NSKeyValueObservation?
-
-    // store the y positions so we don't have to keep re-calculating
-
-    /**
-     The y value for the short form presentation state
-     */
-    private var shortFormYPosition: CGFloat = 0
-
-    /**
-     The y value for the long form presentation state
-     */
-    private var longFormYPosition: CGFloat = 0
-
-    /**
-     Determine anchored Y postion based on the `anchorModalToLongForm` flag
-     */
-    private var anchoredYPosition: CGFloat {
-        let defaultTopOffset = presentable.topOffset
-        return anchorModalToLongForm ? longFormYPosition : defaultTopOffset
-    }
+    private var extendsPanScrolling: Bool = true
 
     /**
      Configuration object for PanModalPresentationController
      */
-    private let presentable: PanModalPresentable
+    private let presented: PanModalPresentable
 
     // MARK: - Views
-
-    /**
-     Background view used as an overlay over the presenting view
-     */
-    private lazy var backgroundView: DimmedView = {
-        let view = DimmedView()
-        view.backgroundColor = presentable.panModalBackgroundColor
-        view.didTap = { [weak self] _ in
-            guard let self else { return }
-            if presentable.allowsTapToDismiss {
-                presentable.dismiss(animated: true)
-            }
-        }
-        return view
-    }()
 
     /**
      A wrapper around the presented view so that we can modify
      the presented view apperance without changing
      the presented view's properties
      */
-    private lazy var panContainerView: PanContainerView = {
-        let frame = containerView?.frame ?? .zero
-        return PanContainerView(presentedView: presentedViewController.view, frame: frame)
-    }()
+    public let dropShadowView = DropShadowView()
 
     /**
-     Drag Indicator View
+     Background view used as an overlay over the presenting view
      */
-    private lazy var dragIndicatorView: UIView = {
-        let view = UIView()
-        view.backgroundColor = presentable.dragIndicatorBackgroundColor
-        view.layer.cornerRadius = Constants.dragIndicatorSize.height / 2.0
-        return view
-    }()
-
-    /**
-     Override presented view to return the pan container wrapper
-     */
-    public override var presentedView: UIView {
-        return panContainerView
-    }
+    public let dimmingView = DimmingView()
 
     // MARK: - Gesture Recognizers
 
     /**
      Gesture recognizer to detect & track pan gestures
      */
-    private lazy var panGestureRecognizer: UIPanGestureRecognizer = {
+    lazy private var panGestureRecognizer: UIPanGestureRecognizer = {
         let gesture = UIPanGestureRecognizer(target: self, action: #selector(didPanOnPresentedView(_ :)))
         gesture.minimumNumberOfTouches = 1
         gesture.maximumNumberOfTouches = 1
@@ -154,58 +102,90 @@ open class PanModalPresentationController: UIPresentationController {
         return gesture
     }()
 
+    // MARK: - Initializer & Deinitializer
+
     public init(presented: PanModalPresentable, presenting: UIViewController?) {
-        self.presentable = presented
+        self.presented = presented
         super.init(presentedViewController: presented, presenting: presenting)
+        delegate = self
+        dimmingView.backgroundColor = presented.panModalBackgroundColor
+        dimmingView.tapHandler = { [unowned presented] _ in
+            if presented.allowsTapToDismiss {
+                presented.dismiss(animated: true)
+            }
+        }
     }
 
-    // MARK: - Deinitializers
-
     deinit {
-        scrollObserver?.invalidate()
+        scrollObservation?.invalidate()
     }
 
     // MARK: - Lifecycle
 
-    override public func containerViewWillLayoutSubviews() {
-        super.containerViewWillLayoutSubviews()
-        configureViewLayout()
+    open override func containerViewDidLayoutSubviews() {
+        super.containerViewDidLayoutSubviews()
+
+        /// `containerViewDidLayoutSubviews()` is called even if the user interface appearance changes
+        guard let containerView else { return }
+        reloadLayoutConfigurations(in: containerView)
     }
 
-    override public func presentationTransitionWillBegin() {
+    /**
+     Override presented view to return the pan container wrapper
+     */
+    open override var presentedView: UIView {
+        return dropShadowView
+    }
+
+    open override var frameOfPresentedViewInContainerView: CGRect {
+        guard let containerView else {
+            return super.frameOfPresentedViewInContainerView
+        }
+        return CGRect(origin: CGPoint(x: 0, y: yPositions[selectedDetent.identifier] ?? presented.topOffset(containerView: containerView)), size: containerView.bounds.size)
+    }
+
+    /**
+     Update presented view size in response to size class changes
+     */
+    open override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+
+        coordinator.animate(alongsideTransition: { [weak self] context in
+            guard let self else { return }
+            presentedView.frame = frameOfPresentedViewInContainerView
+            dropShadowView.cornerRadius = presented.preferredCornerRadius
+        })
+    }
+
+    open override func presentationTransitionWillBegin() {
         guard let containerView else { return }
 
-        if panContainerView.frame == .zero {
-            adjustPresentedViewFrame()
-        }
+        addDimmingView(to: containerView)
+        addDropShadowView(to: containerView)
 
-        layoutBackgroundView(in: containerView)
-        layoutPresentedView(in: containerView)
-        configureScrollViewInsets()
-
-        guard let coordinator = presentedViewController.transitionCoordinator else {
-            backgroundView.dimState = .max
+        guard let coordinator = presented.transitionCoordinator else {
+            dimmingView.dimState = .max
             return
         }
 
         coordinator.animate(alongsideTransition: { [weak self] _ in
             guard let self else { return }
-            backgroundView.dimState = .max
-            presentedViewController.setNeedsStatusBarAppearanceUpdate()
+            dimmingView.dimState = .max
+            presented.setNeedsStatusBarAppearanceUpdate()
         })
     }
 
-    override public func presentationTransitionDidEnd(_ completed: Bool) {
-        if completed { return }
-
-        backgroundView.removeFromSuperview()
+    open override func presentationTransitionDidEnd(_ completed: Bool) {
+        if !completed {
+            dimmingView.removeFromSuperview()
+        }
     }
 
-    override public func dismissalTransitionWillBegin() {
-        presentable.panModalWillDismiss()
+    open override func dismissalTransitionWillBegin() {
+        presented.panModalWillDismiss()
 
-        guard let coordinator = presentedViewController.transitionCoordinator else {
-            backgroundView.dimState = .off
+        guard let coordinator = presented.transitionCoordinator else {
+            dimmingView.dimState = .off
             return
         }
 
@@ -215,53 +195,32 @@ open class PanModalPresentationController: UIPresentationController {
          */
         coordinator.animate(alongsideTransition: { [weak self] _ in
             guard let self else { return }
-            dragIndicatorView.alpha = 0.0
-            backgroundView.dimState = .off
+            dropShadowView.grabber.alpha = 0
+            dimmingView.dimState = .off
             presentingViewController.setNeedsStatusBarAppearanceUpdate()
         })
     }
 
-    override public func dismissalTransitionDidEnd(_ completed: Bool) {
-        if !completed { return }
-        presentable.panModalDidDismiss()
+    open override func dismissalTransitionDidEnd(_ completed: Bool) {
+        if completed {
+            presented.panModalDidDismiss()
+        }
     }
-
-    /**
-     Update presented view size in response to size class changes
-     */
-    override public func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        super.viewWillTransition(to: size, with: coordinator)
-
-        coordinator.animate(alongsideTransition: { [weak self] _ in
-            guard let self else { return }
-            adjustPresentedViewFrame()
-            if presentable.shouldRoundTopCorners {
-                addRoundedCorners(to: self.presentedView)
-            }
-        })
-    }
-
 }
 
 // MARK: - Public Methods
 
-public extension PanModalPresentationController {
+extension PanModalPresentationController {
 
     /**
-     Transition the PanModalPresentationController
-     to the given presentation state
+     Transition the PanModalPresentationController to the given detent
      */
-    func transition(to state: PresentationState) {
-        guard presentable.shouldTransition(to: state) else { return }
+    public func transition(to detent: Detent) {
+        guard presented.shouldTransition(to: detent) else { return }
 
-        presentable.willTransition(to: state)
-
-        switch state {
-        case .shortForm:
-            snap(toYPosition: shortFormYPosition)
-        case .longForm:
-            snap(toYPosition: longFormYPosition)
-        }
+        presented.willTransition(to: detent)
+        selectedDetent = detent
+        snap(to: detent)
     }
 
     /**
@@ -272,12 +231,12 @@ public extension PanModalPresentationController {
      To avoid this, you can call this method to perform scroll view updates,
      with scroll observation temporarily disabled.
      */
-    func performUpdates(_ updates: () -> Void) {
-        guard let panScrollView = presentable.panScrollView else { return }
+    public func performUpdates(_ updates: () -> Void) {
+        guard let panScrollView = presented.panScrollView else { return }
 
         // Pause scroll observer
-        scrollObserver?.invalidate()
-        scrollObserver = nil
+        scrollObservation?.invalidate()
+        scrollObservation = nil
 
         // Perform updates
         updates()
@@ -294,30 +253,23 @@ public extension PanModalPresentationController {
      - Note: This should be called whenever any
      pan modal presentable value changes after the initial presentation
      */
-    func setNeedsLayoutUpdate() {
-        configureViewLayout()
-        adjustPresentedViewFrame()
-        observe(scrollView: presentable.panScrollView)
-        configureScrollViewInsets()
+    public func setNeedsLayoutUpdate() {
+        guard let containerView else { return }
+        reloadLayoutConfigurations(in: containerView)
+        observe(scrollView: presented.panScrollView)
     }
-
 }
 
 // MARK: - Presented View Layout Configuration
 
-private extension PanModalPresentationController {
+extension PanModalPresentationController {
 
     /**
      Boolean flag to determine if the presented view is anchored
      */
-    var isPresentedViewAnchored: Bool {
-        if !isPresentedViewAnimating
-            && extendsPanScrolling
-            && presentedView.frame.minY.rounded() <= anchoredYPosition.rounded() {
-            return true
-        }
-
-        return false
+    private var isPresentedViewAnchored: Bool {
+        let scale = dropShadowView.traitCollection.displayScale
+        return !isPresentedViewAnimating && extendsPanScrolling && dropShadowView.frame.minY.pixelRounded(scale: scale) <= anchoredYPosition.pixelRounded(scale: scale)
     }
 
     /**
@@ -325,131 +277,83 @@ private extension PanModalPresentationController {
      & configures the view elements such as drag indicator, rounded corners
      based on the pan modal presentable.
      */
-    func layoutPresentedView(in containerView: UIView) {
+    private func addDropShadowView(to containerView: UIView) {
         /**
          ⚠️ If this class is NOT used in conjunction with the PanModalPresentationAnimator
          & PanModalPresentable, the presented view should be added to the container view
          in the presentation animator instead of here
          */
-        containerView.addSubview(presentedView)
+        dropShadowView.anchoredYPosition = presented.topOffset(containerView: containerView)
+        dropShadowView.frame = containerView.bounds
+        containerView.addSubview(dropShadowView)
+
+        presented.view.frame = dropShadowView.contentView.bounds
+        presented.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        dropShadowView.contentView.addSubview(presented.view)
+
         containerView.addGestureRecognizer(panGestureRecognizer)
 
-        if presentable.showDragIndicator {
-            addDragIndicatorView(to: presentedView)
-        }
-
-        if presentable.shouldRoundTopCorners {
-            addRoundedCorners(to: presentedView)
-        }
+        dropShadowView.cornerRadius = presented.preferredCornerRadius
 
         setNeedsLayoutUpdate()
         adjustPanContainerBackgroundColor()
     }
 
     /**
-     Reduce height of presentedView so that it sits at the bottom of the screen
+     Adds a background color to the pan container view in order to avoid a gap at the bottom during initial view presentation in largest detent (when view bounces)
      */
-    func adjustPresentedViewFrame() {
-        guard let frame = containerView?.frame else { return }
-
-        let adjustedSize = CGSize(width: frame.size.width, height: frame.size.height - anchoredYPosition)
-        let panFrame = panContainerView.frame
-        panContainerView.frame.size = frame.size
-        
-        if ![shortFormYPosition, longFormYPosition].contains(panFrame.origin.y) {
-            // if the container is already in the correct position, no need to adjust positioning
-            // (rotations & size changes cause positioning to be out of sync)
-            let yPosition = panFrame.origin.y - panFrame.height + frame.height
-            presentedView.frame.origin.y = max(yPosition, anchoredYPosition)
-        }
-        panContainerView.frame.origin.x = frame.origin.x
-        presentedViewController.view.frame = CGRect(origin: .zero, size: adjustedSize)
+    private func adjustPanContainerBackgroundColor() {
+        dropShadowView.backgroundColor = presented.view.backgroundColor ?? presented.panScrollView?.backgroundColor
     }
 
     /**
-     Adds a background color to the pan container view
-     in order to avoid a gap at the bottom
-     during initial view presentation in longForm (when view bounces)
+     Adds the background view to the view hierarchy & configures its layout constraints.
      */
-    func adjustPanContainerBackgroundColor() {
-        panContainerView.backgroundColor = presentedViewController.view.backgroundColor
-            ?? presentable.panScrollView?.backgroundColor
-    }
+    private func addDimmingView(to containerView: UIView) {
+        containerView.addSubview(dimmingView)
 
-    /**
-     Adds the background view to the view hierarchy
-     & configures its layout constraints.
-     */
-    func layoutBackgroundView(in containerView: UIView) {
-        containerView.addSubview(backgroundView)
-        backgroundView.translatesAutoresizingMaskIntoConstraints = false
-        backgroundView.topAnchor.constraint(equalTo: containerView.topAnchor).isActive = true
-        backgroundView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor).isActive = true
-        backgroundView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor).isActive = true
-        backgroundView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor).isActive = true
-    }
-
-    /**
-     Adds the drag indicator view to the view hierarchy
-     & configures its layout constraints.
-     */
-    func addDragIndicatorView(to view: UIView) {
-        view.addSubview(dragIndicatorView)
-        dragIndicatorView.translatesAutoresizingMaskIntoConstraints = false
-        dragIndicatorView.bottomAnchor.constraint(equalTo: view.topAnchor, constant: -Constants.indicatorYOffset).isActive = true
-        dragIndicatorView.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
-        dragIndicatorView.widthAnchor.constraint(equalToConstant: Constants.dragIndicatorSize.width).isActive = true
-        dragIndicatorView.heightAnchor.constraint(equalToConstant: Constants.dragIndicatorSize.height).isActive = true
+        dimmingView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            dimmingView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            dimmingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            containerView.bottomAnchor.constraint(equalTo: dimmingView.bottomAnchor),
+            containerView.trailingAnchor.constraint(equalTo: dimmingView.trailingAnchor)
+        ])
     }
 
     /**
      Calculates & stores the layout anchor points & options
      */
-    func configureViewLayout() {
-        shortFormYPosition = presentable.shortFormYPos
-        longFormYPosition = presentable.longFormYPos
-        anchorModalToLongForm = presentable.anchorModalToLongForm
-        extendsPanScrolling = presentable.allowsExtendedPanScrolling
-
-        containerView?.isUserInteractionEnabled = presentable.isUserInteractionEnabled
+    private func reloadLayoutConfigurations(in containerView: UIView) {
+        let presented = presented.topMostChildForPanModal ?? presented
+        let unorderedDetents = presented.detents
+        yPositions = unorderedDetents.reduce(into: [:]) { yPositions, detent in
+            yPositions[detent.identifier] = presented.yPos(for: detent, containerView: containerView)
+        }
+        detents = unorderedDetents.sorted { yPositions[$0.identifier]! > yPositions[$1.identifier]! }
+        selectedDetent = presented.lastSelectedDetent ?? detents.first
+        anchoredYPosition = presented.topOffset(containerView: containerView)
+        extendsPanScrolling = presented.allowsExtendedPanScrolling
+        if let panScrollView = presented.panScrollView {
+            scrollViewYOffset = panScrollView.contentOffset.y
+        } else {
+            scrollViewYOffset = 0
+        }
+        dropShadowView.grabber.isHidden = !presented.prefersGrabberVisible
+        dropShadowView.anchoredYPosition = anchoredYPosition
+        dropShadowView.frame = frameOfPresentedViewInContainerView
+        containerView.isUserInteractionEnabled = presented.isUserInteractionEnabled
     }
-
-    /**
-     Configures the scroll view insets
-     */
-    func configureScrollViewInsets() {
-        guard let panScrollView = presentable.panScrollView, !panScrollView.isScrolling else { return }
-
-        /**
-         Disable vertical scroll indicator until we start to scroll
-         to avoid visual bugs
-         */
-        panScrollView.showsVerticalScrollIndicator = false
-        panScrollView.scrollIndicatorInsets = presentable.scrollIndicatorInsets
-
-        /**
-         Set the appropriate contentInset as the configuration within this class
-         offsets it
-         */
-        panScrollView.contentInset.bottom = presentingViewController.view.safeAreaInsets.bottom
-
-        /**
-         As we adjust the bounds during `handleScrollViewTopBounce`
-         we should assume that contentInsetAdjustmentBehavior will not be correct
-         */
-        panScrollView.contentInsetAdjustmentBehavior = .never
-    }
-
 }
 
 // MARK: - Pan Gesture Event Handler
 
-private extension PanModalPresentationController {
+extension PanModalPresentationController {
 
     /**
      The designated function for handling pan gesture events
      */
-    @objc func didPanOnPresentedView(_ panGestureRecognizer: UIPanGestureRecognizer) {
+    @objc private func didPanOnPresentedView(_ panGestureRecognizer: UIPanGestureRecognizer) {
         guard shouldRespond(to: panGestureRecognizer), let containerView else {
             panGestureRecognizer.setTranslation(.zero, in: panGestureRecognizer.view)
             return
@@ -464,10 +368,10 @@ private extension PanModalPresentationController {
             respond(to: panGestureRecognizer)
 
             /**
-             If presentedView is translated above the longForm threshold, treat as transition
+             If presentedView is translated above the largest detent threshold, treat as transition
              */
-            if presentedView.frame.origin.y == anchoredYPosition && extendsPanScrolling {
-                presentable.willTransition(to: .longForm)
+            if dropShadowView.frame.origin.y == anchoredYPosition && extendsPanScrolling {
+                presented.willTransition(to: detents.last!)
             }
 
         default:
@@ -480,21 +384,34 @@ private extension PanModalPresentationController {
             if isVelocityWithinSensitivityRange(velocity.y) {
 
                 /**
-                 If velocity is within the sensitivity range,
-                 transition to a presentation state or dismiss entirely.
-
-                 This allows the user to dismiss directly from long form
-                 instead of going to the short form state first.
+                 If velocity is within the sensitivity range, transition to a detent or dismiss entirely.
+                 This allows the user to dismiss directly from large detent instead of going to the small detent first.
                  */
                 if velocity.y < 0 {
-                    transition(to: .longForm)
-
-                } else if (nearest(to: presentedView.frame.minY, inValues: [longFormYPosition, containerView.bounds.height]) == longFormYPosition
-                    && presentedView.frame.minY < shortFormYPosition) || !presentable.allowsDragToDismiss {
-                    transition(to: .shortForm)
+                    // Check if we're already at largest detent
+                    if selectedDetent.identifier == detents.last?.identifier {
+                        transition(to: selectedDetent)
+                        return
+                    }
+                    // Transition to larger detent (ignore selected detent)
+                    var yPositions = yPositions
+                    yPositions[selectedDetent.identifier] = nil
+                    if let identifier = nearestDetentId(to: dropShadowView.frame.minY, yPositions: yPositions, dismissal: containerView.bounds.height) {
+                        let index = detents.firstIndex(where: { $0.identifier == identifier })!
+                        transition(to: detents[index])
+                    }
 
                 } else {
-                    presentedViewController.dismiss(animated: true)
+                    if let identifier = nearestDetentId(to: dropShadowView.frame.minY, yPositions: yPositions, dismissal: containerView.bounds.height) {
+                        let index = detents.firstIndex(where: { $0.identifier == identifier })!
+                        if index > 0 {
+                            transition(to: detents[index - 1])
+                        } else {
+                            presented.dismiss(animated: true)
+                        }
+                    } else {
+                        presented.dismiss(animated: true)
+                    }
                 }
 
             } else {
@@ -503,16 +420,10 @@ private extension PanModalPresentationController {
                  The `containerView.bounds.height` is used to determine
                  how close the presented view is to the bottom of the screen
                  */
-                let position = nearest(to: presentedView.frame.minY, inValues: [containerView.bounds.height, shortFormYPosition, longFormYPosition])
-
-                if position == longFormYPosition {
-                    transition(to: .longForm)
-
-                } else if position == shortFormYPosition || !presentable.allowsDragToDismiss {
-                    transition(to: .shortForm)
-
+                if let identifier = nearestDetentId(to: dropShadowView.frame.minY, yPositions: yPositions, dismissal: containerView.bounds.height) {
+                    transition(to: detents.first(where: { $0.identifier == identifier })!)
                 } else {
-                    presentedViewController.dismiss(animated: true)
+                    presented.dismiss(animated: true)
                 }
             }
         }
@@ -526,8 +437,8 @@ private extension PanModalPresentationController {
 
      ⚠️ This is the only time we should be cancelling the pan modal gesture recognizer
      */
-    func shouldRespond(to panGestureRecognizer: UIPanGestureRecognizer) -> Bool {
-        guard presentable.shouldRespond(to: panGestureRecognizer) || !(panGestureRecognizer.state == .began || panGestureRecognizer.state == .cancelled) else {
+    private func shouldRespond(to panGestureRecognizer: UIPanGestureRecognizer) -> Bool {
+        guard presented.shouldRespond(to: panGestureRecognizer) || !(panGestureRecognizer.state == .began || panGestureRecognizer.state == .cancelled) else {
             panGestureRecognizer.isEnabled = false
             panGestureRecognizer.isEnabled = true
             return false
@@ -538,19 +449,18 @@ private extension PanModalPresentationController {
     /**
      Communicate intentions to presentable and adjust subviews in containerView
      */
-    func respond(to panGestureRecognizer: UIPanGestureRecognizer) {
-        presentable.willRespond(to: panGestureRecognizer)
+    private func respond(to panGestureRecognizer: UIPanGestureRecognizer) {
+        presented.willRespond(to: panGestureRecognizer)
 
         var yDisplacement = panGestureRecognizer.translation(in: presentedView).y
 
         /**
-         If the presentedView is not anchored to long form, reduce the rate of movement
-         above the threshold
+         If the presentedView is not anchored to largest detent, reduce the rate of movement above the threshold
          */
-        if presentedView.frame.origin.y < longFormYPosition {
-            yDisplacement /= 2.0
+        if dropShadowView.frame.origin.y < yPositions[detents.last!.identifier]! {
+            yDisplacement /= 2
         }
-        adjust(toYPosition: presentedView.frame.origin.y + yDisplacement)
+        adjust(toYPosition: dropShadowView.frame.origin.y + yDisplacement)
 
         panGestureRecognizer.setTranslation(.zero, in: presentedView)
     }
@@ -564,7 +474,7 @@ private extension PanModalPresentationController {
      Unfortunately, cancelling a gestureRecognizer means that we lose the effect of transition scrolling
      from one view to another in the same pan gesture so don't cancel
      */
-    func shouldFail(panGestureRecognizer: UIPanGestureRecognizer) -> Bool {
+    private func shouldFail(panGestureRecognizer: UIPanGestureRecognizer) -> Bool {
 
         /**
          Allow api consumers to override the internal conditions &
@@ -574,92 +484,98 @@ private extension PanModalPresentationController {
          for the purpose of ensuring we're no longer tracking the scrollView
          */
         guard !shouldPrioritize(panGestureRecognizer: panGestureRecognizer) else {
-            presentable.panScrollView?.panGestureRecognizer.isEnabled = false
-            presentable.panScrollView?.panGestureRecognizer.isEnabled = true
+            presented.panScrollView?.panGestureRecognizer.isEnabled = false
+            presented.panScrollView?.panGestureRecognizer.isEnabled = true
             return false
         }
 
-        guard isPresentedViewAnchored, let panScrollView = presentable.panScrollView, panScrollView.contentOffset.y > 0 else { return false }
+        guard isPresentedViewAnchored, let panScrollView = presented.panScrollView, panScrollView.contentOffset.y > -panScrollView.adjustedContentInset.top else { return false }
 
-        let loc = panGestureRecognizer.location(in: presentedView)
-        return (panScrollView.frame.contains(loc) || panScrollView.isScrolling)
+        let location = panGestureRecognizer.location(in: presentedView)
+        return panScrollView.frame.contains(location) || panScrollView.isScrolling
     }
 
     /**
      Determine if the presented view's panGestureRecognizer should be prioritized over
      embedded scrollView's panGestureRecognizer.
      */
-    func shouldPrioritize(panGestureRecognizer: UIPanGestureRecognizer) -> Bool {
-        return panGestureRecognizer.state == .began &&
-            presentable.shouldPrioritize(panModalGestureRecognizer: panGestureRecognizer)
+    private func shouldPrioritize(panGestureRecognizer: UIPanGestureRecognizer) -> Bool {
+        return panGestureRecognizer.state == .began && presented.shouldPrioritize(panModalGestureRecognizer: panGestureRecognizer)
     }
 
     /**
      Check if the given velocity is within the sensitivity range
      */
-    func isVelocityWithinSensitivityRange(_ velocity: CGFloat) -> Bool {
-        return (abs(velocity) - (1000 * (1 - Constants.snapMovementSensitivity))) > 0
+    private func isVelocityWithinSensitivityRange(_ velocity: CGFloat) -> Bool {
+        return (abs(velocity) - (1000 * (1 - snapMovementSensitivity))) > 0
     }
 
-    func snap(toYPosition yPos: CGFloat) {
-        presentable.panModalAnimate({ [weak self] in
-            self?.adjust(toYPosition: yPos)
-            self?.isPresentedViewAnimating = true
-        }) { [weak self] didComplete in
-            self?.isPresentedViewAnimating = !didComplete
-        }
+    private func snap(to detent: Detent) {
+        let yPos = yPositions[detent.identifier]!
+        presented.panModalAnimate(
+            animations: { [weak self] in
+                self?.adjust(toYPosition: yPos)
+                self?.isPresentedViewAnimating = true
+            },
+            completion: { [weak self] didComplete in
+                self?.isPresentedViewAnimating = !didComplete
+            }
+        )
     }
 
     /**
      Sets the y position of the presentedView & adjusts the backgroundView.
      */
-    func adjust(toYPosition yPos: CGFloat) {
-        presentedView.frame.origin.y = max(yPos, anchoredYPosition)
-        
-        guard presentedView.frame.origin.y > shortFormYPosition else {
-            backgroundView.dimState = .max
+    private func adjust(toYPosition yPos: CGFloat) {
+        dropShadowView.frame.origin.y = max(yPos, anchoredYPosition)
+
+        guard dropShadowView.frame.origin.y > yPositions[detents.first!.identifier]! else {
+            dimmingView.dimState = .max
             return
         }
 
-        let yDisplacementFromShortForm = presentedView.frame.origin.y - shortFormYPosition
+        let yDisplacementFromShortDetent = dropShadowView.frame.origin.y - yPositions[detents.first!.identifier]!
 
         /**
-         Once presentedView is translated below shortForm, calculate yPos relative to bottom of screen
+         Once presentedView is translated below smallest detent, calculate yPos relative to bottom of screen
          and apply percentage to backgroundView alpha
          */
-        backgroundView.dimState = .percent(1.0 - (yDisplacementFromShortForm / presentedView.frame.height))
+        dimmingView.dimState = .percent(1 - (yDisplacementFromShortDetent / dropShadowView.frame.height))
     }
 
     /**
-     Finds the nearest value to a given number out of a given array of float values
+     Finds the nearest detent idenfier to a given y or nil if `dismissal` is the nearest
 
      - Parameters:
         - number: reference float we are trying to find the closest value to
-        - values: array of floats we would like to compare against
+        - dismissal: the value to compare and return nil if it's the nearest
      */
-    func nearest(to number: CGFloat, inValues values: [CGFloat]) -> CGFloat {
-        guard let nearestVal = values.min(by: { abs(number - $0) < abs(number - $1) }) else { return number }
-        return nearestVal
+    private func nearestDetentId(to yOffset: CGFloat, yPositions: [Detent.Identifier: CGFloat], dismissal: CGFloat) -> Detent.Identifier? {
+        if let nearestYPositionByDetentId = yPositions.min(by: { abs(yOffset - $0.value) < abs(yOffset - $1.value) }) {
+            if abs(yOffset - dismissal) < abs(yOffset - nearestYPositionByDetentId.value) {
+                return nil
+            }
+            return nearestYPositionByDetentId.key
+        }
+        return nil
     }
 }
 
 // MARK: - UIScrollView Observer
 
-private extension PanModalPresentationController {
+extension PanModalPresentationController {
 
     /**
      Creates & stores an observer on the given scroll view's content offset.
      This allows us to track scrolling without overriding the scrollView delegate
      */
-    func observe(scrollView: UIScrollView?) {
-        scrollObserver?.invalidate()
-        scrollObserver = scrollView?.observe(\.contentOffset, options: .old) { [weak self] scrollView, change in
-            guard let self else { return }
-
+    private func observe(scrollView: UIScrollView?) {
+        scrollObservation?.invalidate()
+        scrollObservation = scrollView?.observe(\.contentOffset, options: .old) { [weak self] scrollView, change in
+            guard let self, containerView != nil else { return }
             /**
              Incase we have a situation where we have two containerViews in the same presentation
              */
-            guard containerView != nil else { return }
             didPanOnScrollView(scrollView, change: change)
         }
     }
@@ -673,10 +589,11 @@ private extension PanModalPresentationController {
      This is also shown in Apple Maps (reverse engineering)
      which allows us to seamlessly transition scrolling from the panContainerView to the scrollView
      */
-    func didPanOnScrollView(_ scrollView: UIScrollView, change: NSKeyValueObservedChange<CGPoint>) {
-        guard !presentedViewController.isBeingDismissed, !presentedViewController.isBeingPresented else { return }
+    private func didPanOnScrollView(_ scrollView: UIScrollView, change: NSKeyValueObservedChange<CGPoint>) {
+        guard !presented.isBeingDismissed, !presented.isBeingPresented else { return }
 
-        if !isPresentedViewAnchored && scrollView.contentOffset.y > 0 {
+        let isPresentedViewAnchored = isPresentedViewAnchored
+        if !isPresentedViewAnchored && scrollView.contentOffset.y > -scrollView.adjustedContentInset.top {
 
             /**
              Hold the scrollView in place if we're actively scrolling and not handling top bounce
@@ -687,8 +604,7 @@ private extension PanModalPresentationController {
 
             if isPresentedViewAnchored {
                 /**
-                 While we're scrolling upwards on the scrollView,
-                 store the last content offset position
+                 While we're scrolling upwards on the scrollView, store the last content offset position
                  */
                 trackScrolling(scrollView)
             } else {
@@ -698,11 +614,10 @@ private extension PanModalPresentationController {
                 haltScrolling(scrollView)
             }
 
-        } else if presentedViewController.view is UIScrollView && !isPresentedViewAnimating && scrollView.contentOffset.y <= 0 {
+        } else if presented.view is UIScrollView && !isPresentedViewAnimating && scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top {
 
             /**
-             In the case where we drag down quickly on the scroll view and let go,
-             `handleScrollViewTopBounce` adds a nice elegant touch.
+             In the case where we drag down quickly on the scroll view and let go, `handleScrollViewTopBounce` adds a nice elegant touch.
              */
             handleScrollViewTopBounce(scrollView: scrollView, change: change)
         } else {
@@ -713,7 +628,7 @@ private extension PanModalPresentationController {
     /**
      Halts the scroll of a given scroll view & anchors it at the `scrollViewYOffset`
      */
-    func haltScrolling(_ scrollView: UIScrollView) {
+    private func haltScrolling(_ scrollView: UIScrollView) {
         scrollView.setContentOffset(CGPoint(x: 0, y: scrollViewYOffset), animated: false)
         scrollView.showsVerticalScrollIndicator = false
     }
@@ -722,8 +637,8 @@ private extension PanModalPresentationController {
      As the user scrolls, track & save the scroll view y offset.
      This helps halt scrolling when we want to hold the scroll view in place.
      */
-    func trackScrolling(_ scrollView: UIScrollView) {
-        scrollViewYOffset = max(scrollView.contentOffset.y, 0)
+    private func trackScrolling(_ scrollView: UIScrollView) {
+        scrollViewYOffset = max(scrollView.contentOffset.y, -scrollView.adjustedContentInset.top)
         scrollView.showsVerticalScrollIndicator = true
     }
 
@@ -737,17 +652,17 @@ private extension PanModalPresentationController {
      - Note: This works best where the view behind view controller is a UIScrollView.
      So, for example, a UITableViewController.
      */
-    func handleScrollViewTopBounce(scrollView: UIScrollView, change: NSKeyValueObservedChange<CGPoint>) {
+    private func handleScrollViewTopBounce(scrollView: UIScrollView, change: NSKeyValueObservedChange<CGPoint>) {
         guard let oldYValue = change.oldValue?.y, scrollView.isDecelerating else { return }
 
-        let yOffset = scrollView.contentOffset.y
+        let yOffset = max(scrollView.contentOffset.y, -scrollView.adjustedContentInset.top)
         let presentedSize = containerView?.frame.size ?? .zero
 
         /**
          Decrease the view bounds by the y offset so the scroll view stays in place
          and we can still get updates on its content offset
          */
-        presentedView.bounds.size = CGSize(width: presentedSize.width, height: presentedSize.height + yOffset)
+        dropShadowView.bounds.size = CGSize(width: presentedSize.width, height: presentedSize.height + (yOffset - scrollView.adjustedContentInset.top))
 
         if oldYValue > yOffset {
             /**
@@ -755,10 +670,10 @@ private extension PanModalPresentationController {
              until half way through the deceleration so that it appears
              as if we're transferring the scrollView drag momentum to the entire view
              */
-            presentedView.frame.origin.y = longFormYPosition - yOffset
+            dropShadowView.frame.origin.y = yPositions[detents.last!.identifier]! - (yOffset - scrollView.adjustedContentInset.top)
         } else {
-            scrollViewYOffset = 0
-            snap(toYPosition: longFormYPosition)
+            scrollViewYOffset = -scrollView.adjustedContentInset.top
+            snap(to: detents.last!)
         }
 
         scrollView.showsVerticalScrollIndicator = false
@@ -781,65 +696,58 @@ extension PanModalPresentationController: UIGestureRecognizerDelegate {
      is the pan scrollable view
      */
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        return otherGestureRecognizer.view == presentable.panScrollView
+        return otherGestureRecognizer.view == presented.panScrollView
     }
 }
 
-// MARK: - UIBezierPath
+// MARK: - UIAdaptivePresentationControllerDelegate
 
-private extension PanModalPresentationController {
+extension PanModalPresentationController: UIAdaptivePresentationControllerDelegate {
 
     /**
-     Draws top rounded corners on a given view
-     We have to set a custom path for corner rounding
-     because we render the dragIndicator outside of view bounds
+     - Note: We do not adapt to size classes due to the introduction of the UIPresentationController
+     & deprecation of UIPopoverController (iOS 9), there is no way to have more than one
+     presentation controller in use during the same presentation
+
+     This is essential when transitioning from .popover to .custom on iPad split view... unless a custom popover view is also implemented
+     (popover uses UIPopoverPresentationController & we use PanModalPresentationController)
      */
-    func addRoundedCorners(to view: UIView) {
-        let radius = presentable.cornerRadius
-        let path = UIBezierPath(roundedRect: view.bounds,
-                                byRoundingCorners: [.topLeft, .topRight],
-                                cornerRadii: CGSize(width: radius, height: radius))
 
-        // Draw around the drag indicator view, if displayed
-        if presentable.showDragIndicator {
-            let indicatorLeftEdgeXPos = view.bounds.width/2.0 - Constants.dragIndicatorSize.width/2.0
-            drawAroundDragIndicator(currentPath: path, indicatorLeftEdgeXPos: indicatorLeftEdgeXPos)
-        }
-
-        // Set path as a mask to display optional drag indicator view & rounded corners
-        let mask = CAShapeLayer()
-        mask.path = path.cgPath
-        view.layer.mask = mask
-
-        // Improve performance by rasterizing the layer
-        view.layer.shouldRasterize = true
-        view.layer.rasterizationScale = UIScreen.main.scale
+    /**
+     Dismisses the presented view controller
+     */
+    public func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle {
+        return .none
     }
+}
 
-    /**
-     Draws a path around the drag indicator view
-     */
-    func drawAroundDragIndicator(currentPath path: UIBezierPath, indicatorLeftEdgeXPos: CGFloat) {
+private var lastSelectedDetentKey: Void?
 
-        let totalIndicatorOffset = Constants.indicatorYOffset + Constants.dragIndicatorSize.height
+extension PanModalPresentable {
 
-        // Draw around drag indicator starting from the left
-        path.addLine(to: CGPoint(x: indicatorLeftEdgeXPos, y: path.currentPoint.y))
-        path.addLine(to: CGPoint(x: path.currentPoint.x, y: path.currentPoint.y - totalIndicatorOffset))
-        path.addLine(to: CGPoint(x: path.currentPoint.x + Constants.dragIndicatorSize.width, y: path.currentPoint.y))
-        path.addLine(to: CGPoint(x: path.currentPoint.x, y: path.currentPoint.y + totalIndicatorOffset))
+    fileprivate var lastSelectedDetent: PanModalPresentationController.Detent? {
+        get { return objc_getAssociatedObject(self, &lastSelectedDetentKey) as? PanModalPresentationController.Detent }
+        set { objc_setAssociatedObject(self, &lastSelectedDetentKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 }
 
 // MARK: - Helper Extensions
 
-private extension UIScrollView {
+extension UIScrollView {
 
     /**
      A flag to determine if a scroll view is scrolling
      */
-    var isScrolling: Bool {
+    fileprivate var isScrolling: Bool {
         return isDragging && !isDecelerating || isTracking
+    }
+}
+
+extension CGFloat {
+
+    @usableFromInline
+    func pixelRounded(scale: CGFloat) -> CGFloat {
+        return (rounded() * scale) / scale
     }
 }
 #endif

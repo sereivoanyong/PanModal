@@ -57,7 +57,7 @@ class SampleViewController: UITableViewController {
             return
         }
         dismiss(animated: true, completion: nil)
-        presentPanModal(rowType.presentable.rowVC)
+        presentPanModal(rowType.presentable.rowVC, animated: true)
     }
 }
 
@@ -76,7 +76,7 @@ private extension SampleViewController {
         case userGroups
         case stacked
         case navController
-
+        case tabBar
 
         var presentable: RowPresentable {
             switch self {
@@ -87,6 +87,7 @@ private extension SampleViewController {
             case .userGroups: return UserGroup()
             case .stacked: return Stacked()
             case .navController: return Navigation()
+            case .tabBar: return TabBar()
             }
         }
 
@@ -115,14 +116,19 @@ private extension SampleViewController {
             let rowVC: PanModalPresentable = UserGroupViewController()
         }
 
+        struct Stacked: RowPresentable {
+            let string: String = "User Groups (Stacked)"
+            let rowVC: PanModalPresentable = UserGroupStackedViewController()
+        }
+
         struct Navigation: RowPresentable {
             let string: String = "User Groups (NavigationController)"
             let rowVC: PanModalPresentable = NavigationController()
         }
 
-        struct Stacked: RowPresentable {
-            let string: String = "User Groups (Stacked)"
-            let rowVC: PanModalPresentable = UserGroupStackedViewController()
+        struct TabBar: RowPresentable {
+            let string: String = "User Groups (TabBarController + NavigationController)"
+            let rowVC: PanModalPresentable = TabBarController()
         }
     }
 }

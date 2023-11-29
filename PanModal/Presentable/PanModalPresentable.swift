@@ -11,13 +11,6 @@ import UIKit
 /**
  This is the configuration object for a view controller
  that will be presented using the PanModal transition.
-
- Usage:
- ```
- extension YourViewController: PanModalPresentable {
-    func shouldRoundTopCorners: Bool { return false }
- }
- ```
  */
 public protocol PanModalPresentable: UIViewController {
 
@@ -29,60 +22,23 @@ public protocol PanModalPresentable: UIViewController {
     var panScrollView: UIScrollView? { get }
 
     /**
-     The offset between the top of the screen and the top of the pan modal container view.
+     The `springDamping` value used to determine the amount of 'bounce' seen when transitioning to a detent.
 
-     Default value is the topLayoutGuide.length + 21.0.
-     */
-    var topOffset: CGFloat { get }
-
-    /**
-     The height of the pan modal container view
-     when in the shortForm presentation state.
-
-     This value is capped to .max, if provided value exceeds the space available.
-
-     Default value is the longFormHeight.
-     */
-    var shortFormHeight: PanModalHeight { get }
-
-    /**
-     The height of the pan modal container view
-     when in the longForm presentation state.
-     
-     This value is capped to .max, if provided value exceeds the space available.
-
-     Default value is .max.
-     */
-    var longFormHeight: PanModalHeight { get }
-
-    /**
-     The corner radius used when `shouldRoundTopCorners` is enabled.
-
-     Default Value is 8.0.
-     */
-    var cornerRadius: CGFloat { get }
-
-    /**
-     The springDamping value used to determine the amount of 'bounce'
-     seen when transitioning to short/long form.
-
-     Default Value is 0.8.
+     Default value is 0.8.
      */
     var springDamping: CGFloat { get }
 
     /**
-     The transitionDuration value is used to set the speed of animation during a transition,
-     including initial presentation.
+     The `transitionDuration` value is used to set the speed of animation during a transition, including initial presentation.
 
      Default value is 0.5.
     */
     var transitionDuration: TimeInterval { get }
 
     /**
-     The animation options used when performing animations on the PanModal, utilized mostly
-     during a transition.
+     The animation options used when performing animations on the PanModal, utilized mostly during a transition.
 
-     Default value is [.curveEaseInOut, .allowUserInteraction, .beginFromCurrentState].
+     Default value is `[.curveEaseInOut, .allowUserInteraction, .beginFromCurrentState]`.
     */
     var transitionAnimationOptions: UIView.AnimationOptions { get }
 
@@ -91,45 +47,22 @@ public protocol PanModalPresentable: UIViewController {
 
      - Note: This is only utilized at the very start of the transition.
 
-     Default Value is black with alpha component 0.7.
+     Default value is black with alpha component 0.7.
     */
     var panModalBackgroundColor: UIColor { get }
-
-    /**
-     The drag indicator view color.
-
-     Default value is light gray.
-    */
-    var dragIndicatorBackgroundColor: UIColor { get }
-
-    /**
-     We configure the panScrollView's scrollIndicatorInsets interally so override this value
-     to set custom insets.
-
-     - Note: Use `panModalSetNeedsLayoutUpdate()` when updating insets.
-     */
-    var scrollIndicatorInsets: UIEdgeInsets { get }
-
-    /**
-     A flag to determine if scrolling should be limited to the longFormHeight.
-     Return false to cap scrolling at .max height.
-
-     Default value is true.
-     */
-    var anchorModalToLongForm: Bool { get }
 
     /**
      A flag to determine if scrolling should seamlessly transition from the pan modal container view to
      the embedded scroll view once the scroll limit has been reached.
 
-     Default value is false. Unless a scrollView is provided and the content height exceeds the longForm height.
+     Default value is false. Unless a scrollView is provided and the content height exceeds the largest detent height.
      */
     var allowsExtendedPanScrolling: Bool { get }
 
     /**
      A flag to determine if dismissal should be initiated when swiping down on the presented view.
 
-     Return false to fallback to the short form state instead of dismissing.
+     Return false to fallback to the smallest detent instead of dismissing.
 
      Default value is true.
      */
@@ -159,19 +92,23 @@ public protocol PanModalPresentable: UIViewController {
     var isHapticFeedbackEnabled: Bool { get }
 
     /**
-     A flag to determine if the top corners should be rounded.
-
-     Default value is true.
-     */
-    var shouldRoundTopCorners: Bool { get }
-
-    /**
      A flag to determine if a drag indicator should be shown
      above the pan modal container view.
 
      Default value is true.
      */
-    var showDragIndicator: Bool { get }
+    var prefersGrabberVisible: Bool { get }
+
+    /**
+     The radius used to round top corners. Set to 0 to disable.
+
+     Default value is 8.0.
+     */
+    var preferredCornerRadius: CGFloat { get }
+
+    var detents: [PanModalPresentationController.Detent] { get }
+
+    var childForPanModal: PanModalPresentable? { get }
 
     /**
      Asks the delegate if the pan modal should respond to the pan modal gesture recognizer.
@@ -184,7 +121,7 @@ public protocol PanModalPresentable: UIViewController {
 
     /**
      Notifies the delegate when the pan modal gesture recognizer state is either
-     `began` or `changed`. This method gives the delegate a chance to prepare
+     `.began` or `.changed`. This method gives the delegate a chance to prepare
      for the gesture recognizer state change.
 
      For example, when the pan modal view is about to scroll.
@@ -207,18 +144,18 @@ public protocol PanModalPresentable: UIViewController {
     func shouldPrioritize(panModalGestureRecognizer: UIPanGestureRecognizer) -> Bool
 
     /**
-     Asks the delegate if the pan modal should transition to a new state.
+     Asks the delegate if the pan modal should transition to a new detent.
 
      Default value is true.
      */
-    func shouldTransition(to state: PanModalPresentationController.PresentationState) -> Bool
+    func shouldTransition(to detent: PanModalPresentationController.Detent) -> Bool
 
     /**
-     Notifies the delegate that the pan modal is about to transition to a new state.
+     Notifies the delegate that the pan modal is about to transition to a new detent.
 
      Default value is an empty implementation.
      */
-    func willTransition(to state: PanModalPresentationController.PresentationState)
+    func willTransition(to detent: PanModalPresentationController.Detent)
 
     /**
      Notifies the delegate that the pan modal is about to be dismissed.
@@ -234,30 +171,4 @@ public protocol PanModalPresentable: UIViewController {
      */
     func panModalDidDismiss()
 }
-
-public extension PanModalPresentable {
-
-  static var defaultTransitionDuration: TimeInterval {
-      return 0.5
-  }
-
-  /**
-   A function wrapper over the animate function in PanModalAnimator.
-
-   This can be used for animation consistency on views within the presented view controller.
-   */
-  func panModalAnimate(_ animations: @escaping () -> Void, _ completion: ((Bool) -> Void)? = nil) {
-      UIView.animate(
-          withDuration: transitionDuration,
-          delay: 0,
-          usingSpringWithDamping: springDamping,
-          initialSpringVelocity: 0,
-          options: transitionAnimationOptions,
-          animations: animations,
-          completion: completion
-      )
-  }
-
-}
-
 #endif

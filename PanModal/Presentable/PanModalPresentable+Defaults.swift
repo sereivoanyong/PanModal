@@ -11,112 +11,148 @@ import UIKit
 /**
  Default values for the PanModalPresentable.
  */
-public extension PanModalPresentable {
+extension PanModalPresentable {
 
-    var topOffset: CGFloat {
-        return topLayoutOffset + 21.0
+    public var panScrollView: UIScrollView? {
+        loadViewIfNeeded()
+        if let topMostChildForPanModal {
+            return topMostChildForPanModal.panScrollView
+        }
+        return view.subviews.first as? UIScrollView ?? view as? UIScrollView
     }
 
-    var shortFormHeight: PanModalHeight {
-        return longFormHeight
+    public var detents: [PanModalPresentationController.Detent] {
+        return [
+            .init(identifier: .content, height: .content)
+        ]
     }
 
-    var longFormHeight: PanModalHeight {
-        guard let panScrollView else { return .maxHeight }
-        // called once during presentation and stored
-        panScrollView.layoutIfNeeded()
-        return .contentHeight(panScrollView.contentSize.height)
+    public var preferredCornerRadius: CGFloat {
+        return 12.0
     }
 
-    var cornerRadius: CGFloat {
-        return 8.0
-    }
-
-    var springDamping: CGFloat {
+    public var springDamping: CGFloat {
         return 0.8
     }
 
-    var transitionDuration: TimeInterval {
-        return Self.defaultTransitionDuration
+    public var transitionDuration: TimeInterval {
+        return 0.5
     }
 
-    var transitionAnimationOptions: UIView.AnimationOptions {
+    public var transitionAnimationOptions: UIView.AnimationOptions {
         return [.curveEaseInOut, .allowUserInteraction, .beginFromCurrentState]
     }
 
-    var panModalBackgroundColor: UIColor {
-        return UIColor.black.withAlphaComponent(0.7)
+    public var panModalBackgroundColor: UIColor {
+      let color = UIColor(white: 0, alpha: 0.12)
+      if #available(iOS 13.0, *) {
+        let darkColor = UIColor(white: 0, alpha: 0.29)
+        return UIColor { traitCollection in
+          return traitCollection.userInterfaceStyle == .dark ? darkColor : color
+        }
+      } else {
+        return color
+      }
     }
 
-    var dragIndicatorBackgroundColor: UIColor {
-        return UIColor.lightGray
-    }
-
-    var scrollIndicatorInsets: UIEdgeInsets {
-        let top = shouldRoundTopCorners ? cornerRadius : 0
-        return UIEdgeInsets(top: top, left: 0, bottom: bottomLayoutOffset, right: 0)
-    }
-
-    var anchorModalToLongForm: Bool {
-        return true
-    }
-
-    var allowsExtendedPanScrolling: Bool {
+    public var allowsExtendedPanScrolling: Bool {
         guard let panScrollView else { return false }
         panScrollView.layoutIfNeeded()
-        return panScrollView.contentSize.height > (panScrollView.frame.height - bottomLayoutOffset)
+        return panScrollView.contentSize.height > (panScrollView.frame.height - panScrollView.safeAreaInsets.bottom)
     }
 
-    var allowsDragToDismiss: Bool {
+    public var allowsDragToDismiss: Bool {
         return true
     }
 
-    var allowsTapToDismiss: Bool {
+    public var allowsTapToDismiss: Bool {
         return true
     }
 
-    var isUserInteractionEnabled: Bool {
+    public var isUserInteractionEnabled: Bool {
         return true
     }
 
-    var isHapticFeedbackEnabled: Bool {
+    public var isHapticFeedbackEnabled: Bool {
         return true
     }
 
-    var shouldRoundTopCorners: Bool {
-        return isPanModalPresented
+    public var prefersGrabberVisible: Bool {
+        return preferredCornerRadius > 0
     }
 
-    var showDragIndicator: Bool {
-        return shouldRoundTopCorners
+    public var childForPanModal: PanModalPresentable? {
+        return nil
     }
 
-    func shouldRespond(to panModalGestureRecognizer: UIPanGestureRecognizer) -> Bool {
+    public func shouldRespond(to panModalGestureRecognizer: UIPanGestureRecognizer) -> Bool {
         return true
     }
 
-    func willRespond(to panModalGestureRecognizer: UIPanGestureRecognizer) {
+    public func willRespond(to panModalGestureRecognizer: UIPanGestureRecognizer) {
 
     }
 
-    func shouldTransition(to state: PanModalPresentationController.PresentationState) -> Bool {
+    public func shouldTransition(to detent: PanModalPresentationController.Detent) -> Bool {
         return true
     }
 
-    func shouldPrioritize(panModalGestureRecognizer: UIPanGestureRecognizer) -> Bool {
+    public func shouldPrioritize(panModalGestureRecognizer: UIPanGestureRecognizer) -> Bool {
         return false
     }
 
-    func willTransition(to state: PanModalPresentationController.PresentationState) {
+    public func willTransition(to detent: PanModalPresentationController.Detent) {
 
     }
 
-    func panModalWillDismiss() {
+    public func panModalWillDismiss() {
 
     }
 
-    func panModalDidDismiss() {
+    public func panModalDidDismiss() {
 
+    }
+}
+
+extension PanModalPresentable {
+
+    public var topMostChildForPanModal: PanModalPresentable? {
+        guard var child = childForPanModal else { return nil }
+        while let nextChild = child.childForPanModal {
+            child = nextChild
+        }
+        return child
+    }
+
+    /**
+     A function wrapper over the animate function in PanModalAnimator.
+
+     This can be used for animation consistency on views within the presented view controller.
+     */
+    public func panModalAnimate(animations: @escaping () -> Void, completion: ((Bool) -> Void)? = nil) {
+        UIView.animate(
+            withDuration: transitionDuration,
+            delay: 0,
+            usingSpringWithDamping: springDamping,
+            initialSpringVelocity: 0,
+            options: transitionAnimationOptions,
+            animations: animations,
+            completion: completion
+        )
+    }
+}
+
+extension UINavigationController {
+
+    public var childForPanModal: PanModalPresentable? {
+        return topViewController as? PanModalPresentable
+    }
+}
+
+extension UITabBarController {
+
+    public var childForPanModal: PanModalPresentable? {
+        return selectedViewController as? PanModalPresentable
     }
 }
 #endif

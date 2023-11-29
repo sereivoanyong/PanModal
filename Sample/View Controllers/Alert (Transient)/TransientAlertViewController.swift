@@ -51,12 +51,14 @@ class TransientAlertViewController: AlertViewController {
 
     // MARK: - Pan Modal Presentable
 
-    override var showDragIndicator: Bool {
-        return false
+    override var detents: [PanModalPresentationController.Detent] {
+        return [
+            .init(identifier: .medium, height: .fixed(alertViewHeight))
+        ]
     }
 
-    override var anchorModalToLongForm: Bool {
-        return true
+    override var prefersGrabberVisible: Bool {
+        return false
     }
 
     override var panModalBackgroundColor: UIColor {

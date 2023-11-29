@@ -10,7 +10,7 @@ import UIKit
 
 class AlertViewController: UIViewController, PanModalPresentable {
 
-    private let alertViewHeight: CGFloat = 68
+    let alertViewHeight: CGFloat = 68
 
     let alertView: AlertView = {
         let alertView = AlertView()
@@ -38,28 +38,19 @@ class AlertViewController: UIViewController, PanModalPresentable {
         return nil
     }
 
-    var shortFormHeight: PanModalHeight {
-        return .contentHeight(alertViewHeight)
-    }
-
-    var longFormHeight: PanModalHeight {
-        return shortFormHeight
+    var detents: [PanModalPresentationController.Detent] {
+        return [
+            .init(identifier: .medium, height: .fixed(alertViewHeight)),
+            .init(identifier: .max, height: .max)
+        ]
     }
 
     var panModalBackgroundColor: UIColor {
         return UIColor.black.withAlphaComponent(0.1)
     }
 
-    var shouldRoundTopCorners: Bool {
-        return false
-    }
-
-    var showDragIndicator: Bool {
+    var prefersGrabberVisible: Bool {
         return true
-    }
-
-    var anchorModalToLongForm: Bool {
-        return false
     }
 
     var isUserInteractionEnabled: Bool {

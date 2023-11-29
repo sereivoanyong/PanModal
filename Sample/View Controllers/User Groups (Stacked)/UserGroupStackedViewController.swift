@@ -14,12 +14,14 @@ class UserGroupStackedViewController: UserGroupViewController {
         tableView.deselectRow(at: indexPath, animated: true)
 
         let presentable = members[indexPath.row]
-        let viewController = StackedProfileViewController(presentable: presentable)
+        let viewController = ProfileViewController(presentable: presentable)
 
-        presentPanModal(viewController)
+        presentPanModal(viewController, animated: true)
     }
 
-    override var shortFormHeight: PanModalHeight {
-        return longFormHeight
+    override var detents: [PanModalPresentationController.Detent] {
+        return [
+          .init(identifier: .content, height: .content)
+        ]
     }
 }

@@ -22,15 +22,11 @@ extension FullScreenNavController: PanModalPresentable {
         return nil
     }
 
-    var topOffset: CGFloat {
-        return 0.0
-    }
-
     var springDamping: CGFloat {
         return 1.0
     }
 
-    var transitionDuration: Double {
+    var transitionDuration: TimeInterval {
         return 0.4
     }
 
@@ -38,11 +34,7 @@ extension FullScreenNavController: PanModalPresentable {
         return [.allowUserInteraction, .beginFromCurrentState]
     }
 
-    var shouldRoundTopCorners: Bool {
-        return false
-    }
-
-    var showDragIndicator: Bool {
+    var prefersGrabberVisible: Bool {
         return false
     }
 }

@@ -8,7 +8,7 @@
 
 import UIKit
 
-class ProfileViewController: UIViewController {
+class ProfileViewController: UIViewController, PanModalPresentable {
 
     // MARK: - Properties
 
@@ -78,13 +78,26 @@ class ProfileViewController: UIViewController {
         avatarView.widthAnchor.constraint(equalToConstant: 200.0).isActive = true
         avatarView.heightAnchor.constraint(equalToConstant: 200.0).isActive = true
         avatarView.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
-        avatarView.topAnchor.constraint(equalTo: view.topAnchor, constant: 100.0).isActive = true
+        avatarView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 100.0).isActive = true
 
         nameLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
         nameLabel.topAnchor.constraint(equalTo: avatarView.bottomAnchor, constant: 60.0).isActive = true
 
         roleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
         roleLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 8.0).isActive = true
+        view.safeAreaLayoutGuide.bottomAnchor.constraint(greaterThanOrEqualTo: roleLabel.bottomAnchor).isActive = true
+    }
+
+    // MARK: - Pan Modal Presentable
+
+    var panScrollView: UIScrollView? {
+        return nil
+    }
+
+    var detents: [PanModalPresentationController.Detent] {
+        return [
+            .init(identifier: .large, height: .intrinsicContent),
+            .init(identifier: .max, height: .max)
+        ]
     }
 }
-
